@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太空射擊遊戲</title>
+    <style>
+        *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050918;color:#e8f7ff;font-family:system-ui,sans-serif}.game{width:min(94vw,800px);text-align:center}h1{color:#65eaff;letter-spacing:.12em;text-shadow:0 0 18px #00bfff;margin:0}.stats{display:flex;justify-content:space-between;padding:10px 2px;color:#c5e4f4}canvas{width:100%;display:block;background:#071329;border:1px solid #2a6480;border-radius:10px;touch-action:none}button{margin:14px;padding:9px 24px;border:1px solid #65eaff;border-radius:8px;background:#07334b;color:white;font:inherit;cursor:pointer}.help{color:#a7bed0;font-size:.9rem}
+    </style>
+</head>
+<body>
+    <main class="game">
+        <h1>STAR DEFENDER</h1>
+        <div class="stats"><span>分數：<b id="score">0</b></span><span>生命：<b id="lives">3</b></span><span>最高：<b id="best">0</b></span></div>
+        <canvas id="game" width="800" height="500" aria-label="太空射擊遊戲"></canvas>
+        <button id="start">開始遊戲</button>
+        <p class="help">← → 或 A / D 移動，空白鍵射擊；手機可拖曳飛船並點擊射擊。</p>
+    </main>
+    <script>
+    (()=>{
+        const c=document.querySelector('#game'),x=c.getContext('2d'),$=s=>document.querySelector(s);
+        let running=false,keys={},bullets=[],foes=[],sparks=[],score=0,lives=3,last=0,shot=0,next=0,audio;
+        const ship={x:400,y:450},stars=Array.from({length:100},()=>({x:Math.random()*800,y:Math.random()*500,v:15+Math.random()*45,r:.5+Math.random()*1.5}));
+        let best=Number(localStorage.getItem('starShooterBest')||0);$('#best').textContent=best;
+        function sound(f,d=.1,type='sine',vol=.04){try{audio ||= new(window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+d)}catch(e){}}
+        function reset(){score=0;lives=3;bullets=[];foes=[];sparks=[];ship.x=400;running=true;last=performance.now();next=0;$('#score').textContent=0;$('#lives').textContent=3;$('#start').textContent='重新開始';requestAnimationFrame(frame)}
+        function fire(){let t=performance.now();if(t-shot<180)return;shot=t;bullets.push({x:ship.x,y:ship.y-18});sound(650,.08,'square',.025)}
+        function burst(a,b,color){for(let i=0;i<9;i++)sparks.push({x:a,y:b,vx:(Math.random()-.5)*180,vy:(Math.random()-.5)*180,t:.45,color})}
+        function drawShip(){x.save();x.translate(ship.x,ship.y);x.shadowColor='#25eaff';x.shadowBlur=16;x.fillStyle='#70eaff';x.beginPath();x.moveTo(0,-21);x.lineTo(17,15);x.lineTo(0,9);x.lineTo(-17,15);x.closePath();x.fill();x.restore()}
+        function end(){running=false;best=Math.max(best,score);localStorage.setItem('starShooterBest',best);$('#best').textContent=best;x.fillStyle='#020713c9';x.fillRect(0,0,800,500);x.textAlign='center';x.fillStyle='white';x.font='bold 38px system-ui';x.fillText('任務結束',400,235);x.font='20px system-ui';x.fillText('得分：'+score,400,275);$('#start').textContent='再玩一次'}
+        function frame(now){if(!running)return;let dt=Math.min((now-last)/1000,.04);last=now;x.fillStyle='#071329';x.fillRect(0,0,800,500);
+            for(const s of stars){s.y+=s.v*dt;if(s.y>500){s.y=0;s.x=Math.random()*800}x.fillStyle='rgba(190,230,255,.65)';x.fillRect(s.x,s.y,s.r,s.r)}
+            if(keys.ArrowLeft||keys.a||keys.A)ship.x-=390*dt;if(keys.ArrowRight||keys.d||keys.D)ship.x+=390*dt;ship.x=Math.max(20,Math.min(780,ship.x));if(keys[' '])fire();
+            bullets.forEach(b=>b.y-=540*dt);bullets=bullets.filter(b=>b.y>-10);
+            if(now>next){foes.push({x:25+Math.random()*750,y:-20,r:13,v:75+Math.random()*55});next=now+Math.max(330,850-score*2)}
+            for(let i=foes.length-1;i>=0;i--){let e=foes[i];e.y+=e.v*dt;let j=bullets.findIndex(b=>Math.hypot(b.x-e.x,b.y-e.y)<e.r+5);if(j>=0){bullets.splice(j,1);foes.splice(i,1);burst(e.x,e.y,'#ffb45e');score+=10;$('#score').textContent=score;sound(230,.15,'triangle',.06);continue}if(e.y>ship.y-13&&Math.abs(e.x-ship.x)<25){foes.splice(i,1);lives--;$('#lives').textContent=lives;burst(ship.x,ship.y,'#ff507c');sound(100,.28,'sawtooth',.06);if(!lives){end();return}}else if(e.y>520)foes.splice(i,1)}
+            x.shadowColor='#40efff';x.shadowBlur=12;x.fillStyle='#aaffff';bullets.forEach(b=>x.fillRect(b.x-2,b.y-9,4,13));x.shadowBlur=0;
+            foes.forEach(e=>{x.fillStyle='#ff668c';x.shadowColor='#ff3b70';x.shadowBlur=12;x.beginPath();x.arc(e.x,e.y,e.r,0,7);x.fill()});x.shadowBlur=0;
+            sparks.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.t-=dt;x.globalAlpha=Math.max(0,p.t*2);x.fillStyle=p.color;x.fillRect(p.x,p.y,3,3)});x.globalAlpha=1;sparks=sparks.filter(p=>p.t>0);drawShip();requestAnimationFrame(frame)
+        }
+        $('#start').addEventListener('click',reset);window.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();keys[e.key]=true;if(e.key===' '&&running)fire()});window.addEventListener('keyup',e=>keys[e.key]=false);
+        function pointer(e){let r=c.getBoundingClientRect();ship.x=(e.clientX-r.left)*800/r.width;if(e.type==='pointerdown'){c.setPointerCapture(e.pointerId);fire()}}c.addEventListener('pointerdown',pointer);c.addEventListener('pointermove',e=>{if(e.buttons)pointer(e)});
+        x.fillStyle='#071329';x.fillRect(0,0,800,500);drawShip();x.textAlign='center';x.fillStyle='#c9efff';x.font='24px system-ui';x.fillText('準備好保衛銀河了嗎？',400,250)
+    })();
+    </script>
+</body>
+</html>
